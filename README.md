@@ -1,4 +1,5 @@
 # kesu-button
+<img width="1366" height="768" alt="Captura de pantalla_2026-06-28_09-04-59" src="https://github.com/user-attachments/assets/4aee8811-e406-45c8-bce0-04d9f50fec47" />
 
 **kesu-button** is a lightweight XFCE panel plugin that provides a classic GnoMenu-style orb/button for Angujanu.
 
