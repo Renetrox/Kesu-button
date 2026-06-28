@@ -1,0 +1,9 @@
+[Xfce Panel]
+Type=X-XFCE-PanelPlugin
+Encoding=UTF-8
+Name=Kesú
+Comment=Angujanu orb button
+Icon=start-here
+X-XFCE-Module=kesu
+X-XFCE-Internal=TRUE
+X-XFCE-API=2.0
