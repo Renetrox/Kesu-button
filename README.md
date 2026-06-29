@@ -38,9 +38,7 @@ sudo apt install build-essential pkg-config libgtk-3-dev libxfce4panel-2.0-dev l
 ## Install
 
 ```bash
-cd /home/Reneto/Público/kesu
 unzip -o ~/Descargas/kesu_panel_04.zip
-touch Makefile kesu-panel-plugin.c kesu.desktop
 make clean
 make
 sudo make install
