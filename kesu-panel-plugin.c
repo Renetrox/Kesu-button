@@ -4,7 +4,7 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
-#define KESU_PADDING 4
+#define KESU_HORIZONTAL_PADDING 4
 
 typedef struct {
     gchar *name;
@@ -172,8 +172,10 @@ static GdkPixbuf *load_pixbuf(KesuPlugin *k, const gchar *path, gboolean save_sc
     if (!src) { if (err) { g_warning("Kesú: no se pudo cargar %s: %s", path, err->message); g_error_free(err); } return NULL; }
     gint sw = gdk_pixbuf_get_width(src), sh = gdk_pixbuf_get_height(src);
     if (sw <= 0 || sh <= 0) return src;
-    gint th = k->panel_size - KESU_PADDING;
-    if (th < 16) th = k->panel_size;
+
+    /* GnoMenu escalaba el Background al alto completo del panel. El padding
+       horizontal se conserva para el área clicable, pero ya no achica el orb. */
+    gint th = k->panel_size;
     if (th < 16) th = 32;
     gdouble sc = (gdouble)th / (gdouble)sh;
     gint tw = MAX(1, (gint)(sw * sc));
@@ -203,12 +205,12 @@ static void set_label_markup(GtkWidget *label, const gchar *markup) {
 static void update_layout(KesuPlugin *k) {
     if (k->normal_pixbuf) { k->image_w = gdk_pixbuf_get_width(k->normal_pixbuf); k->image_h = gdk_pixbuf_get_height(k->normal_pixbuf); }
     else { k->image_w = k->panel_size; k->image_h = k->panel_size; }
-    gint req_w = k->image_w + KESU_PADDING;
+    gint req_w = k->image_w + KESU_HORIZONTAL_PADDING;
     gint req_h = k->panel_size;
     gtk_widget_set_size_request(k->event_box, req_w, req_h);
     gtk_widget_set_size_request(k->fixed, req_w, req_h);
     gtk_widget_set_size_request(k->image, k->image_w, k->image_h);
-    gint image_x = KESU_PADDING / 2;
+    gint image_x = KESU_HORIZONTAL_PADDING / 2;
     gint image_y = MAX(0, (k->panel_size - k->image_h) / 2);
     gtk_fixed_move(GTK_FIXED(k->fixed), k->image, image_x, image_y);
     if (k->label_data.enabled) {
@@ -241,14 +243,66 @@ static void set_state(KesuPlugin *k, const gchar *state) {
     if (k->label_data.enabled) set_label_markup(k->label, txt);
 }
 
+static gboolean launcher_geometry(KesuPlugin *k, gint *x, gint *y, gint *w, gint *h) {
+    if (!k || !k->event_box || !gtk_widget_get_realized(k->event_box)) return FALSE;
+
+    GdkWindow *window = gtk_widget_get_window(k->event_box);
+    if (!window) return FALSE;
+
+    gdk_window_get_origin(window, x, y);
+    *w = gtk_widget_get_allocated_width(k->event_box);
+    *h = gtk_widget_get_allocated_height(k->event_box);
+
+    return (*w > 0 && *h > 0);
+}
+
+static const gchar *panel_position_name(KesuPlugin *k, gint center_x, gint center_y) {
+    XfceScreenPosition pos = xfce_panel_plugin_get_screen_position(k->plugin);
+
+    if (xfce_screen_position_is_top(pos)) return "top";
+    if (xfce_screen_position_is_bottom(pos)) return "bottom";
+    if (xfce_screen_position_is_left(pos)) return "left";
+    if (xfce_screen_position_is_right(pos)) return "right";
+
+    /* Floating/unknown position fallback: infer the nearest edge from the
+       launcher's real coordinates instead of assuming a bottom panel. */
+    GtkOrientation orientation = xfce_panel_plugin_get_orientation(k->plugin);
+    GdkScreen *screen = gtk_widget_get_screen(k->event_box);
+
+    if (screen) {
+        gint monitor = gdk_screen_get_monitor_at_point(screen, center_x, center_y);
+        GdkRectangle geometry;
+        gdk_screen_get_monitor_geometry(screen, monitor, &geometry);
+
+        if (orientation == GTK_ORIENTATION_VERTICAL)
+            return center_x < geometry.x + geometry.width / 2 ? "left" : "right";
+
+        return center_y < geometry.y + geometry.height / 2 ? "top" : "bottom";
+    }
+
+    return orientation == GTK_ORIENTATION_VERTICAL ? "left" : "bottom";
+}
+
 static gchar *launcher_command(KesuPlugin *k) {
     const gchar *launcher = (k->launcher_path && g_file_test(k->launcher_path, G_FILE_TEST_EXISTS)) ? k->launcher_path : NULL;
     gchar *fallback = NULL;
     if (!launcher) { fallback = home_build(".local/bin/xfcemenu"); launcher = fallback; }
-    gchar *cmd;
-    if (launcher && g_file_test(launcher, G_FILE_TEST_EXISTS)) cmd = g_shell_quote(launcher);
-    else cmd = g_strdup("xfcemenu");
+
+    gchar *base;
+    if (launcher && g_file_test(launcher, G_FILE_TEST_EXISTS)) base = g_shell_quote(launcher);
+    else base = g_strdup("xfcemenu");
     g_free(fallback);
+
+    gint x = 0, y = 0, w = 0, h = 0;
+    if (!launcher_geometry(k, &x, &y, &w, &h)) return base;
+
+    const gchar *panel_position = panel_position_name(k, x + w / 2, y + h / 2);
+    gchar *cmd = g_strdup_printf(
+        "%s --anchor-x %d --anchor-y %d --anchor-width %d --anchor-height %d --panel-position %s",
+        base, x, y, w, h, panel_position);
+
+    g_debug("Kesú: launcher anchor %s %d,%d %dx%d", panel_position, x, y, w, h);
+    g_free(base);
     return cmd;
 }
 
