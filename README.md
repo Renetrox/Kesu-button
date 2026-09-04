@@ -15,18 +15,22 @@ It is designed to revive legacy GnoMenu `Button` themes on modern XFCE desktops.
 * Reads the selected button theme from Angujanu/XFCEMenu configuration.
 * Supports normal, hover and pressed button states.
 * Supports PNG and SVG button images.
-* Scales proportionally to the panel height.
+* Scales the main button proportionally to the full panel height, matching the original GnoMenu `Background` behavior more closely.
 * Basic `themedata.xml` support.
 * Supports legacy `<Label ...>` text definitions.
 * Uses `Name`, `MarkupNormal`, `MarkupHover`, `MarkupPressed`, `LabelX` and `LabelY`.
 * Draws legacy text such as “Start” or “Iniciar” on top of the button.
 * Launches Angujanu through `~/.local/bin/xfcemenu`.
+* Sends the real Kesu button position, size and XFCE panel edge to compatible Angujanu launchers.
+* Supports top, bottom, left and right panel anchoring, with a position fallback for floating panels.
 
 ## Current status
 
-This version is based on `kesu_panel_04`.
+This version is based on `kesu_panel_04` and keeps the stable native panel-plugin implementation.
 
-It supports the stable panel-plugin implementation with basic legacy Button theme support. Themes using a separate `Top` layer are not fully supported yet. Future versions may add an optional GnoMenu-style overlay mode for those themes.
+Kesu now passes its real panel-button geometry to Angujanu so the menu can open relative to the launcher instead of relying on pointer position or a fixed panel-height guess. The main `Background` image also uses the full panel height instead of being reduced by internal vertical padding.
+
+Themes using a separate `Top` layer are not fully supported yet. Future versions may add an optional GnoMenu-style overlay mode for those themes.
 
 ## Dependencies
 
@@ -45,6 +49,8 @@ make
 sudo make install
 xfce4-panel -r
 ```
+
+When installing from a Git checkout, run the same build steps from the repository directory so `libkesu.so` is rebuilt from the current `kesu-panel-plugin.c`.
 
 After restarting the panel, add the plugin from:
 
@@ -89,6 +95,14 @@ button_themes_dir = /home/user/.local/share/xfcemenu/themes/Button
 ```
 
 This launcher handles opening and closing the menu using the existing XFCEMenu/Angujanu toggle behavior.
+
+When Kesu can read its realized panel widget geometry, it appends internal launcher arguments equivalent to:
+
+```text
+--anchor-x X --anchor-y Y --anchor-width W --anchor-height H --panel-position EDGE
+```
+
+where `EDGE` is `top`, `bottom`, `left` or `right`. Compatible Angujanu versions use these values to align the menu with Kesu. If geometry cannot be obtained, Kesu falls back to launching `xfcemenu` normally.
 
 ## Notes
 
