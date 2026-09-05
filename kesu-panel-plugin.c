@@ -246,10 +246,31 @@ static void set_state(KesuPlugin *k, const gchar *state) {
 static gboolean launcher_geometry(KesuPlugin *k, gint *x, gint *y, gint *w, gint *h) {
     if (!k || !k->event_box || !gtk_widget_get_realized(k->event_box)) return FALSE;
 
-    GdkWindow *window = gtk_widget_get_window(k->event_box);
-    if (!window) return FALSE;
+    /*
+     * event_box usa visible_window=FALSE, así que gtk_widget_get_window()
+     * puede devolver la GdkWindow compartida del panel. Tomar su origen
+     * directamente hace que Kesu parezca estar siempre en x=0.
+     *
+     * Traducimos el (0,0) real del widget hasta el toplevel del panel y
+     * luego sumamos el origen de esa ventana en coordenadas de pantalla.
+     */
+    GtkWidget *toplevel = gtk_widget_get_toplevel(k->event_box);
+    if (!toplevel || !GTK_IS_WINDOW(toplevel) || !gtk_widget_get_realized(toplevel))
+        return FALSE;
 
-    gdk_window_get_origin(window, x, y);
+    gint local_x = 0, local_y = 0;
+    if (!gtk_widget_translate_coordinates(k->event_box, toplevel, 0, 0,
+                                          &local_x, &local_y))
+        return FALSE;
+
+    GdkWindow *top_window = gtk_widget_get_window(toplevel);
+    if (!top_window) return FALSE;
+
+    gint root_x = 0, root_y = 0;
+    gdk_window_get_origin(top_window, &root_x, &root_y);
+
+    *x = root_x + local_x;
+    *y = root_y + local_y;
     *w = gtk_widget_get_allocated_width(k->event_box);
     *h = gtk_widget_get_allocated_height(k->event_box);
 
@@ -301,7 +322,7 @@ static gchar *launcher_command(KesuPlugin *k) {
         "%s --anchor-x %d --anchor-y %d --anchor-width %d --anchor-height %d --panel-position %s",
         base, x, y, w, h, panel_position);
 
-    g_debug("Kesú: launcher anchor %s %d,%d %dx%d", panel_position, x, y, w, h);
+    g_message("Kesú: launcher anchor %s %d,%d %dx%d", panel_position, x, y, w, h);
     g_free(base);
     return cmd;
 }
