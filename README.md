@@ -4,33 +4,69 @@
 
 **kesu-button** is a lightweight XFCE panel plugin that provides a classic GnoMenu-style orb/button for Angujanu.
 
-It is designed to revive legacy GnoMenu `Button` themes on modern XFCE desktops. The plugin lives directly inside `xfce4-panel`, reads the selected button theme from the Angujanu/XFCEMenu configuration, and supports normal, hover and pressed button states.
+It is designed to revive legacy GnoMenu `Button` themes on modern XFCE desktops. The plugin lives directly inside `xfce4-panel`, reads the selected button theme from the Angujanu/XFCEMenu configuration, and supports the original normal, hover and pressed visual states.
 
-`kesu-button` is not a floating overlay hack: it is a real XFCE panel plugin. Optional GnoMenu-style top-overlay support may be added later for themes that used a separate `Top` layer.
+Kesu keeps the main button as a real XFCE panel plugin and now also implements the optional auxiliary transparent window used by classic GnoMenu themes with `Top="1"`.
 
 ## Features
 
 * Real `xfce4-panel` plugin.
 * Loads legacy GnoMenu `Button` themes.
 * Reads the selected button theme from Angujanu/XFCEMenu configuration.
+* Parses `<Background Image=... ImageHover=... ImagePressed=...>` from `themedata.xml` instead of depending on fixed filenames.
+* Keeps the old `start-here*.png` / SVG names as compatibility fallbacks for incomplete themes.
 * Supports normal, hover and pressed button states.
+* Keeps the pressed state synchronized with the Angujanu menu process, matching GnoMenu's “menu open” state more closely.
 * Supports PNG and SVG button images.
-* Scales the main button proportionally to the full panel height, matching the original GnoMenu `Background` behavior more closely.
-* Basic `themedata.xml` support.
+* Scales the main button proportionally to the full panel height, matching the original GnoMenu `Background` behavior.
 * Supports legacy `<Label ...>` text definitions.
 * Uses `Name`, `MarkupNormal`, `MarkupHover`, `MarkupPressed`, `LabelX` and `LabelY`.
 * Draws legacy text such as “Start” or “Iniciar” on top of the button.
+* Supports GnoMenu button themes with `Top="1"` and a separate `<Top>` image set.
+* Uses the same scale calculated from `Background` for the `<Top>` layer instead of stretching the overlay to the full panel height.
+* Synchronizes normal / hover / pressed images between the panel button and the auxiliary Top window.
+* For a top panel, vertically flips only the main `Background` when `Top="1"`, following the original GnoMenu behavior; the `<Top>` overlay stays upright.
 * Launches Angujanu through `~/.local/bin/xfcemenu`.
 * Sends the real Kesu button position, size and XFCE panel edge to compatible Angujanu launchers.
-* Supports top, bottom, left and right panel anchoring, with a position fallback for floating panels.
+* Supports top, bottom, left and right menu anchoring, with a position fallback for floating panels.
 
 ## Current status
 
-This version is based on `kesu_panel_04` and keeps the stable native panel-plugin implementation.
+This version is based on the stable native `kesu_panel_04` panel-plugin implementation, but the legacy button-theme path has now been brought much closer to original GnoMenu semantics.
 
-Kesu now passes its real panel-button geometry to Angujanu so the menu can open relative to the launcher instead of relying on pointer position or a fixed panel-height guess. The main `Background` image also uses the full panel height instead of being reduced by internal vertical padding.
+Kesu reads the actual `Background` filenames declared by the theme, passes its real panel-button geometry to Angujanu, uses the full panel height for the main orb, and implements the classic `Top="1"` two-window model for horizontal panels.
 
-Themes using a separate `Top` layer are not fully supported yet. Future versions may add an optional GnoMenu-style overlay mode for those themes.
+For `Top="1"` themes, the auxiliary window is placed outside the XFCE panel toward the desktop:
+
+```text
+Top panel:    panel → Top overlay below it
+Bottom panel: Top overlay above it → panel
+```
+
+The overlay uses its own normal / hover / pressed assets and remains interactive, as in original GnoMenu. Kesu periodically follows the real button geometry so moving the plugin across the panel also moves the overlay.
+
+The Top overlay implementation is new and should be considered **experimental until tested across several XFCE compositors/themes**. The normal panel-only path for themes with `Top="0"` remains the compatibility fallback.
+
+## Legacy Button theme model
+
+A classic two-layer theme can look like this:
+
+```xml
+<content type="Button">
+  <theme Top="1">
+    <Background
+      Image="start-here.png"
+      ImageHover="start-here-glow.png"
+      ImagePressed="start-here-depressed.png"/>
+    <Top
+      Image="start-here-top.png"
+      ImageHover="start-here-top-glow.png"
+      ImagePressed="start-here-top-depressed.png"/>
+  </theme>
+</content>
+```
+
+`Background` is scaled to the XFCE panel height. The resulting scale factor is then reused for `Top`, which is how the old GnoMenu implementation avoided inflating the protruding overlay to the full panel height.
 
 ## Dependencies
 
@@ -42,15 +78,14 @@ sudo apt install build-essential pkg-config libgtk-3-dev libxfce4panel-2.0-dev l
 
 ## Install
 
+From a Git checkout:
+
 ```bash
-unzip -o ~/Descargas/kesu_panel_04.zip
 make clean
 make
 sudo make install
 xfce4-panel -r
 ```
-
-When installing from a Git checkout, run the same build steps from the repository directory so `libkesu.so` is rebuilt from the current `kesu-panel-plugin.c`.
 
 After restarting the panel, add the plugin from:
 
@@ -104,8 +139,12 @@ When Kesu can read its realized panel widget geometry, it appends internal launc
 
 where `EDGE` is `top`, `bottom`, `left` or `right`. Compatible Angujanu versions use these values to align the menu with Kesu. If geometry cannot be obtained, Kesu falls back to launching `xfcemenu` normally.
 
-## Notes
+For legacy `Top="1"` themes, Kesu reuses that same real geometry to place the transparent auxiliary window next to the actual launcher rather than assuming that the button is at the left edge of the screen.
 
-Some legacy GnoMenu Button themes include a `Top` layer. In the original GnoMenu, this layer was often drawn using a separate transparent overlay window above the panel.
+## Compatibility notes
 
-For stability, the current version focuses on rendering the main button image and legacy label text inside the XFCE panel plugin. Full `Top` overlay behavior may be implemented later as an optional experimental mode.
+The original GnoMenu Top layer was a second interactive transparent window rather than a decorative image clipped inside the panel. Kesu follows that model while keeping the main orb inside the native XFCE plugin.
+
+The legacy Top behavior is intentionally limited to horizontal top/bottom panels. Kesu can still anchor Angujanu from left/right panels, but it does not rotate classic GnoMenu button skins by 90 degrees.
+
+Exact historical quirks of legacy `<Label>` font scaling and positioning are still being audited separately; the current label path remains compatible with Kesu's existing themes while the larger Button/Top semantics are restored.
