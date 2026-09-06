@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define KESU_HORIZONTAL_PADDING 4
-#define KESU_MENU_WATCH_MS 500
+#define KESU_MENU_WATCH_MS 200
 
 typedef struct {
     gchar *name;
@@ -816,6 +816,20 @@ static void position_top_window(KesuPlugin *k) {
 
     gtk_window_move(GTK_WINDOW(k->top_window), overlay_x, overlay_y);
     gtk_widget_show_all(k->top_window);
+
+    /*
+     * El GnoMenu original mantenía PanelTopWindow por encima y, al abrir el
+     * menú, lo enlazaba como transient del menú. Kesu y Angujanu viven en
+     * procesos distintos, así que GTK no puede crear ese transient directo.
+     * Reafirmamos aquí el mismo orden de apilado en cada sincronización.
+     */
+    if (gtk_widget_get_realized(k->top_window)) {
+        GdkWindow *overlay_window = gtk_widget_get_window(k->top_window);
+        if (overlay_window) {
+            gtk_window_set_keep_above(GTK_WINDOW(k->top_window), TRUE);
+            gdk_window_raise(overlay_window);
+        }
+    }
 }
 
 static gchar *launcher_command(KesuPlugin *k) {
@@ -1066,7 +1080,8 @@ static void kesu_construct(XfcePanelPlugin *plugin) {
 
     /*
      * También mantiene la posición del overlay si el usuario reordena Kesu
-     * dentro del panel y sincroniza el estado pressed con el menú real.
+     * dentro del panel, sincroniza el estado pressed con el menú real y
+     * reafirma el stacking del Top para que Angujanu no lo tape al mapearse.
      */
     k->menu_watch_id =
         g_timeout_add(KESU_MENU_WATCH_MS, sync_menu_state, k);
